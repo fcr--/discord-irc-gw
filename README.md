@@ -1,4 +1,4 @@
-# discord-irc-gw
+# discord-irc-gw<sub>α</sub>
 Discord to IRC gateway!
 
 This application connects as bot to Discord while acting as an IRC Server.
