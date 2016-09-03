@@ -28,6 +28,8 @@ def on_message(message):
         return m.group()
     for content in message.content.split('\n'):
         content = re.sub(r'<@!?([0-9]{10,})>', nickmapper, content)
+        if not message.channel.is_private and n[:1] != '#':
+            content = 'From #'+message.channel.name+': ' + content
         irc_client.write_msg(irc_client.member_to_nick(message.author),
                 'PRIVMSG', [n, content])
 
@@ -148,9 +150,22 @@ class IrcServerProtocol(asyncio.Protocol):
     def handle_privmsg(self, line):
         if len(line)<3:
             return 'love'
-        if line[1].lower() not in self.joins:
-            return self.write_smsg(401, [line[1], 'No suck nick or channel not joined'])
-        ch = self.joins[line[1].lower()]
+        if line[1][:1] == '#': # privmsg to a nick:
+            if line[1].lower() not in self.joins:
+                return self.write_smsg(401, [line[1], 'Destination channel not joined.'])
+            ch = self.joins[line[1].lower()]
+        else:
+            ch = line[1]
+            if ch in config.nick_mappings_inv:
+                ch = config.nick_mappings_inv[ch]
+            if re.match(r'u[0-9]{10,}$', ch):
+                ch = int(ch[1:])
+            for member in bot.get_all_members():
+                if int(member.id) == ch:
+                    ch = member
+                    break
+            else:
+                return self.write_smsg(401, [line[1], 'No such nick exists.'])
         nicksre = re.compile(r'\b(' + '|'.join(config.nick_mappings.values()) + r')\b')
         def nick_mapper(match):
             return '<@' + config.nick_mappings_inv[match.group(1)][1:] + '>'
