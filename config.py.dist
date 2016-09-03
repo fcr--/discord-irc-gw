@@ -1,0 +1,11 @@
+#!/usr/bin/python
+# -*- encoding: utf-8 -*-
+
+nick_mappings = {
+    # for every user in the server you may an entry like the following one:
+    # 'u219285322674995201': 'fcr',
+}
+port = 6667
+token = 'ThisIsARandomTokenSoDont.UseThe.OneSpecifiedHereKudasaimasu'
+
+# vi: et sw=4
