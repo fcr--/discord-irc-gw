@@ -39,6 +39,7 @@ class IrcServerProtocol(asyncio.Protocol):
         self.state = 'unconnected'
         # joins[irc_channel_name_in_lowercase] -> channel_instance
         self.joins = {}
+        self.line_buffer = []
         self.handlers = {
                 'JOIN': self.handle_join,
                 'NAMES': self.handle_names,
@@ -73,6 +74,15 @@ class IrcServerProtocol(asyncio.Protocol):
         self.transport.write(msg.encode())
 
     def data_received(self, data):
+        lines = data.split(b'\n')
+        if len(lines) <= 1:
+            return self.line_buffer.extend(lines)
+        lines[0] = b''.join(self.line_buffer + lines[:1])
+        self.line_buffer = lines[-1:]
+        for line in lines[:-1]:
+            self.line_received(line)
+
+    def line_received(self, data):
         line = self.irc_split(data.decode())
         if len(line) < 1: return
         print('message %r' % line)
