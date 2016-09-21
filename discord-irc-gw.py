@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 
 import config
@@ -156,6 +156,8 @@ class IrcServerProtocol(asyncio.Protocol):
             ch = self.joins[line[1].lower()]
         else:
             ch = line[1]
+            if ch == '*status':
+                return self.handle_status_cmd(line)
             if ch in config.nick_mappings_inv:
                 ch = config.nick_mappings_inv[ch]
             if re.match(r'u[0-9]{10,}$', ch):
@@ -171,6 +173,16 @@ class IrcServerProtocol(asyncio.Protocol):
             return '<@' + config.nick_mappings_inv[match.group(1)][1:] + '>'
         content = nicksre.sub(nick_mapper, line[2])
         return asyncio.async(bot.send_message(ch, content))
+
+    def handle_status_cmd(self, line):
+        words = line[2].split(' ')
+        if words[0] == 'youtube':
+            @asyncio.coroutine
+            def coro():
+                voice = yield from bot.join_voice_channel(bot.get_channel(config.mod['youtube']['channel']))
+                player = yield from voice.create_ytdl_player(words[1])
+                player.start()
+            asyncio.async(coro())
 
     def handle_userhost(self, line):
         if len(line) < 2:
