@@ -3,9 +3,8 @@
 
 import config
 import discord
-import multiprocessing
 import asyncio
-import re
+import re, shlex, time, multiprocessing
 
 bot = discord.Client()
 server_name = 'DiscordIrcGw'
@@ -32,6 +31,48 @@ def on_message(message):
             content = 'From #'+message.channel.name+': ' + content
         irc_client.write_msg(irc_client.member_to_nick(message.author),
                 'PRIVMSG', [n, content])
+
+jukebox_info = {
+    'last_url': None,
+    'last_message_time': time.time(),
+    'last_processes': set(),
+    'terminated': False
+}
+
+@bot.async_event
+def on_member_update(before, after):
+    if 'jukebox' in config.mod and config.nick_mappings['u'+after.id] == config.mod['jukebox']['nick']:
+        command = """youtube-dl -f 'bestaudio[ext=m4a]' --no-playlist -4 -q -o - --no-part {} | \\
+                mbuffer -b 100000 -q -s 1kB | mplayer -quiet - 2>/dev/null & \\
+                trap "kill %1" TERM; wait %1""".format(shlex.quote(after.game.url))
+        @asyncio.coroutine
+        def coro():
+            proc = yield from asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=None)
+            if jukebox_info['terminated']:
+                return proc.terminate()
+            jukebox_info['last_processes'].add(proc)
+            try:
+                line = yield from proc.stdout.readline()
+                while b'Starting playback...\n' != line:
+                    line = yield from proc.stdout.readline()
+                for p in jukebox_info['last_processes']:
+                    if p is not proc:
+                        p.terminate()
+                yield from proc.communicate(None)
+            finally:
+                jukebox_info['last_processes'].remove(proc)
+
+        print('notification received for url:', after.game.url)
+        if after.game.url is None or after.game.url == '':
+            jukebox_info['terminated'] = True
+            for p in jukebox_info['last_processes']:
+                p.terminate()
+        elif jukebox_info['last_url'] != after.game.url or time.time() - jukebox_info['last_message_time'] > 1:
+            jukebox_info['terminated'] = False
+            jukebox_info['last_url'] = after.game.url
+            jukebox_info['last_message_time'] = time.time()
+            asyncio.async(coro())
+
 
 class IrcServerProtocol(asyncio.Protocol):
     def connection_made(self, transport):
