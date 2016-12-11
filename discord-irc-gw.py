@@ -245,6 +245,19 @@ class IrcServerProtocol(asyncio.Protocol):
                 for u in line[1:] if u == self.nickname])
         self.write_smsg(302, [msg])
 
+    def translate_mask(self, mask):
+        if mask == '0': return re.compile('.*')
+        res = []
+        for c in mask:
+            if c == '*':
+                res.append('.*')
+            elif c == '?':
+                res.append('.')
+            else:
+                res.append(re.escape(c))
+        res.append('$')
+        return re.compile(''.join(res))
+
     def handle_who(self, line):
         if len(line) < 2:
             return self.write_smsg(302, ['Not enough parameters.'])
@@ -255,9 +268,10 @@ class IrcServerProtocol(asyncio.Protocol):
                         'localhost', server_name, self.member_to_nick(member),
                         'H', ':0', member.display_name])
         else:
+            r = self.translate_mask(line[1])
             for member in bot.get_all_members():
                 nick = self.member_to_nick(member)
-                if nick == line[1]:
+                if r.match(nick):
                     self.write_smsg(352, [line[1], nick, 'localhost',
                         server_name, nick, 'H', ':0', member.display_name])
         self.write_smsg(315, [line[1], 'End of /WHO list.'])
