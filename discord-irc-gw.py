@@ -112,7 +112,7 @@ class IrcServerProtocol(asyncio.Protocol):
         return res
 
     def write_smsg(self, cmd, args):
-        if any([' ' in a for a in args[:-1]]):
+        if any(' ' in a for a in args[:-1]):
             raise Exception('space in non-last command')
         if len(args):
             args[-1] = ':' + args[-1]
@@ -120,7 +120,7 @@ class IrcServerProtocol(asyncio.Protocol):
         self.transport.write(msg.encode())
 
     def write_msg(self, userfrom, cmd, args):
-        if any([' ' in a for a in args[:-1]]):
+        if any(' ' in a for a in args[:-1]):
             raise Exception('space in non-last command')
         if len(args):
             args[-1] = ':' + args[-1]
