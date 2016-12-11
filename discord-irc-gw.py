@@ -175,6 +175,10 @@ class IrcServerProtocol(asyncio.Protocol):
                         ch.server.name, (ch.topic or '')[:50], ch.id)])
             else:
                 self.write_msg(self.nickname, 'JOIN', [ircchannel])
+                if channels[0].topic is None:
+                    self.write_smsg(331, [ircchannel, 'No topic is set'])
+                else:
+                    self.write_smsg(332, [ircchannel, channels[0].topic.replace('\n', ' ')])
                 self.joins[ircchannel] = channels[0]
                 self.handle_names(['NAMES', ircchannel])
 
