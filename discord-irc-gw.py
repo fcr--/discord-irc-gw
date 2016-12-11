@@ -16,7 +16,7 @@ def on_member_join(member):
     print('Member {0.mention} joined.' % str(member))
 
 @bot.async_event
-def on_message(message):
+def on_message(message, newmessage=None):
     if message.author.id == bot.user.id:
         return
     n = ([ ircname for ircname, ch in irc_client.joins.items()
@@ -25,12 +25,25 @@ def on_message(message):
         if 'u'+match.group(1) in config.nick_mappings:
             return '<' + config.nick_mappings['u'+match.group(1)] + '>'
         return m.group()
-    for content in message.content.split('\n'):
+    if newmessage is not None:
+        if newmessage.content != message.content:
+            parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
+                     ' → ' + newmessage.content).split('\n')
+        oldurls = {embed.url for embed in message.embeds}
+        for url in {embed.url for embed in newmessage.embeds} - oldurls:
+            parts.append('→ URL: ' + url)
+    else:
+        parts = message.content.split('\n') + ['URL: ' + embed.url for embed in message.embeds]
+    for content in parts:
         content = re.sub(r'<@!?([0-9]{10,})>', nickmapper, content)
         if not message.channel.is_private and n[:1] != '#':
             content = 'From #'+message.channel.name+': ' + content
         irc_client.write_msg(irc_client.member_to_nick(message.author),
                 'PRIVMSG', [n, content])
+
+@bot.async_event
+def on_message_edit(before, after):
+    yield from on_message(before, after)
 
 jukebox_info = {
     'last_url': None,
@@ -42,7 +55,7 @@ jukebox_info = {
 @bot.async_event
 def on_member_update(before, after):
     if 'jukebox' in config.mod and config.nick_mappings['u'+after.id] == config.mod['jukebox']['nick']:
-        command = """youtube-dl -f 'bestaudio[ext=m4a]' --no-playlist -4 -q -o - --no-part {} | \\
+        command = """youtube-dl -f 'bestaudio[ext=m4a]' --no-playlist -4 -q -o - --no-part -- {} | \\
                 mbuffer -b 100000 -q -s 1kB | mplayer -quiet - 2>/dev/null & \\
                 trap "kill %1" TERM; wait %1""".format(shlex.quote(after.game.url))
         @asyncio.coroutine
