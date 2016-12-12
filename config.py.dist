@@ -6,6 +6,11 @@ nick_mappings = {
     # 'u219285322674995201': 'fcr',
 }
 port = 6667
-token = 'ThisIsARandomTokenSoDont.UseThe.OneSpecifiedHereKudasaimasu'
+
+# Uncomment and set the correct value to a valid token if you want to run this gw as a bot:
+#token = 'ThisIsARandomTokenSoDont.UseThe.OneSpecifiedHereKudasaimasu'
+# Otherwise uncomment and set the following lines to the ones you use for your user account.
+#email = 'your@email.com'
+#password = 'w34Ks3cr3t'
 
 # vi: et sw=4

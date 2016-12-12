@@ -241,6 +241,17 @@ class IrcServerProtocol(asyncio.Protocol):
                 player = yield from voice.create_ytdl_player(words[1])
                 player.start()
             asyncio.async(coro())
+        if words[0] == 'eval' and len(words)>1:
+            def say(text):
+                for line in str(text).split('\n'):
+                    self.write_msg('*status', 'PRIVMSG', [self.nickname, line])
+            if not hasattr(self, 'eval_locals'):
+                self.eval_locals = {'say': say}
+            command = line[2].split(' ', 1)[1]
+            try:
+                exec(command, globals(), self.eval_locals)
+            except Exception as ex:
+                say('ERR> ' + repr(ex))
 
     def handle_userhost(self, line):
         if len(line) < 2:
@@ -292,7 +303,10 @@ def __main__():
     coro = loop.create_server(IrcServerProtocol, '127.0.0.1', config.port)
     loop.run_until_complete(coro)
 
-    bot.run(config.token)
+    if hasattr(config, 'email') and hasattr(config, 'password'):
+        bot.run(config.email, config.password)
+    else:
+        bot.run(config.token)
 
 if __name__ == '__main__':
     __main__()

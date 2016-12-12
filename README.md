@@ -16,6 +16,6 @@ Nevertheless this application is still in an early development stage, so don't e
     vi config.py
     ./discord-irc-gw.py
 
-How about `config.py`? The first thing you'll need is the `token` for your bot instance. Follow [this tutorial](https://github.com/reactiflux/discord-irc/wiki/Creating-a-discord-bot-&-getting-a-token) to get that identifier.
+How about `config.py`? If you want to run the gateway as a bot, the first thing you'll need is the `token` for your bot instance. Follow [this tutorial](https://github.com/reactiflux/discord-irc/wiki/Creating-a-discord-bot-&-getting-a-token) to get that identifier. Otherwise set `email` and `password` to those used for your normal account.
 
 Since Discord allows arbitrary strings as nicknames, we have to map them manually. So finally you'll have to specify the mapping for the nicknames. Hint: when you connect to the gateway using your irc client, you'll receive a notification with the identifier and all the info provided by Discord for all the usernames without nick mappings.
