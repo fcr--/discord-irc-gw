@@ -25,15 +25,16 @@ def on_message(message, newmessage=None):
         if 'u'+match.group(1) in config.nick_mappings:
             return '<' + config.nick_mappings['u'+match.group(1)] + '>'
         return m.group()
+    def message_urls(message):
+        return { embed.thumbnail.url for embed in message.embeds if embed.thumbnail != embed.Empty }
     if newmessage is not None:
         if newmessage.content != message.content:
             parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
                      ' → ' + newmessage.content).split('\n')
-        oldurls = {embed.url for embed in message.embeds}
-        for url in {embed.url for embed in newmessage.embeds} - oldurls:
+        for url in message_urls(newmessage.embeds) - message_urls(message):
             parts.append('→ URL: ' + url)
     else:
-        parts = message.content.split('\n') + ['URL: ' + embed.url for embed in message.embeds]
+        parts = message.content.split('\n') + ['URL: ' + url for url in message_urls(message)]
     for content in parts:
         content = re.sub(r'<@!?([0-9]{10,})>', nickmapper, content)
         if not message.channel.is_private and n[:1] != '#':
@@ -255,7 +256,7 @@ class IrcServerProtocol(asyncio.Protocol):
 
     def handle_userhost(self, line):
         if len(line) < 2:
-            return self.write_smsg(302, ['Not enough parameters.'])
+            return self.write_smsg(461, ['Not enough parameters.'])
         msg = ' '.join([ '%s=+%s@127.0.0.1' % (u, self.username)
                 for u in line[1:] if u == self.nickname])
         self.write_smsg(302, [msg])
@@ -275,7 +276,7 @@ class IrcServerProtocol(asyncio.Protocol):
 
     def handle_who(self, line):
         if len(line) < 2:
-            return self.write_smsg(302, ['Not enough parameters.'])
+            return self.write_smsg(461, ['Not enough parameters.'])
         if line[1][:1] == '#':
             if line[1].upper() in self.joins:
                 for member in self.joins[line[1].upper()].server.members:
