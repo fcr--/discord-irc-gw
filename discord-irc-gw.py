@@ -56,23 +56,21 @@ jukebox_info = {
 @bot.async_event
 def on_member_update(before, after):
     if 'jukebox' in config.mod and config.nick_mappings['u'+after.id] == config.mod['jukebox']['nick']:
-        command = """youtube-dl -f 'bestaudio[ext=m4a]' --no-playlist -4 -q -o - --no-part -- {} | \\
-                mbuffer -b 100000 -q -s 1kB | mplayer -quiet - 2>/dev/null & \\
-                trap "kill %1" TERM; wait %1""".format(shlex.quote(after.game.url))
+        command = """./youtube-play.sh {}""".format(shlex.quote(after.game.url))
         @asyncio.coroutine
         def coro():
-            proc = yield from asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=None)
+            proc = yield from asyncio.create_subprocess_shell(command)
             if jukebox_info['terminated']:
                 return proc.terminate()
             jukebox_info['last_processes'].add(proc)
             try:
-                line = yield from proc.stdout.readline()
-                while b'Starting playback...\n' != line:
-                    line = yield from proc.stdout.readline()
-                for p in jukebox_info['last_processes']:
-                    if p is not proc:
+                yield from proc.wait()
+                for p in [ p for p in jukebox_info['last_processes'] if p is not proc ]:
+                    try:
                         p.terminate()
-                yield from proc.communicate(None)
+                    except:
+                        pass
+                    jukebox_info['last_processes'].remove(p)
             finally:
                 jukebox_info['last_processes'].remove(proc)
 
@@ -80,7 +78,11 @@ def on_member_update(before, after):
         if after.game.url is None or after.game.url == '':
             jukebox_info['terminated'] = True
             for p in jukebox_info['last_processes']:
-                p.terminate()
+                try:
+                    p.terminate()
+                except:
+                    pass
+                jukebox_info['last_processes'].remove(p)
         elif jukebox_info['last_url'] != after.game.url or time.time() - jukebox_info['last_message_time'] > 1:
             jukebox_info['terminated'] = False
             jukebox_info['last_url'] = after.game.url
