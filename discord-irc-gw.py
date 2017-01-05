@@ -70,9 +70,9 @@ def on_member_update(before, after):
                         p.terminate()
                     except:
                         pass
-                    jukebox_info['last_processes'].remove(p)
+                    jukebox_info['last_processes'].discard(p)
             finally:
-                jukebox_info['last_processes'].remove(proc)
+                jukebox_info['last_processes'].discard(proc)
 
         print('notification received for url:', after.game.url)
         if after.game.url is None or after.game.url == '':
@@ -82,7 +82,7 @@ def on_member_update(before, after):
                     p.terminate()
                 except:
                     pass
-                jukebox_info['last_processes'].remove(p)
+                jukebox_info['last_processes'].discard(p)
         elif jukebox_info['last_url'] != after.game.url or time.time() - jukebox_info['last_message_time'] > 1:
             jukebox_info['terminated'] = False
             jukebox_info['last_url'] = after.game.url
