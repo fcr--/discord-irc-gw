@@ -26,12 +26,15 @@ def on_message(message, newmessage=None):
             return '<' + config.nick_mappings['u'+match.group(1)] + '>'
         return m.group()
     def message_urls(message):
-        return { embed.thumbnail.url for embed in message.embeds if embed.thumbnail != embed.Empty }
+        return { attachment['url'] for attachment in message.attachments if 'url' in attachment }
+    for a in message.attachments:
+        for k, v in a.items():
+            print(k, v)
     if newmessage is not None:
         if newmessage.content != message.content:
             parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
                      ' → ' + newmessage.content).split('\n')
-        for url in message_urls(newmessage.embeds) - message_urls(message):
+        for url in message_urls(newmessage) - message_urls(message):
             parts.append('→ URL: ' + url)
     else:
         parts = message.content.split('\n') + ['URL: ' + url for url in message_urls(message)]
@@ -56,9 +59,8 @@ jukebox_info = {
 @bot.async_event
 def on_member_update(before, after):
     if 'jukebox' in config.mod and config.nick_mappings['u'+after.id] == config.mod['jukebox']['nick']:
-        command = """./youtube-play.sh {}""".format(shlex.quote(after.game.url))
         @asyncio.coroutine
-        def coro():
+        def coro(command):
             proc = yield from asyncio.create_subprocess_shell(command)
             if jukebox_info['terminated']:
                 return proc.terminate()
@@ -75,7 +77,7 @@ def on_member_update(before, after):
                 jukebox_info['last_processes'].discard(proc)
 
         print('notification received for url:', after.game.url)
-        if after.game.url is None or after.game.url == '':
+        if after.game is None or after.game.url is None or after.game.url == '':
             jukebox_info['terminated'] = True
             for p in jukebox_info['last_processes']:
                 try:
@@ -84,10 +86,11 @@ def on_member_update(before, after):
                     pass
                 jukebox_info['last_processes'].discard(p)
         elif jukebox_info['last_url'] != after.game.url or time.time() - jukebox_info['last_message_time'] > 1:
+            command = """./youtube-play.sh {}""".format(shlex.quote(after.game.url))
             jukebox_info['terminated'] = False
             jukebox_info['last_url'] = after.game.url
             jukebox_info['last_message_time'] = time.time()
-            asyncio.async(coro())
+            asyncio.async(coro(command))
 
 
 class IrcServerProtocol(asyncio.Protocol):
