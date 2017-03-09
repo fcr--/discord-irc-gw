@@ -232,10 +232,12 @@ class IrcServerProtocol(asyncio.Protocol):
                     break
             else:
                 return self.write_smsg(401, [line[1], 'No such nick exists.'])
-        nicksre = re.compile(r'\b(' + '|'.join(config.nick_mappings.values()) + r')\b')
-        def nick_mapper(match):
-            return '<@' + config.nick_mappings_inv[match.group(1)][1:] + '>'
-        content = nicksre.sub(nick_mapper, line[2])
+        content = line[2]
+        if line[1][:1] == '#': # nick references only on non-private conversations
+            nicksre = re.compile(r'\b(' + '|'.join(config.nick_mappings.values()) + r')\b')
+            def nick_mapper(match):
+                return '<@' + config.nick_mappings_inv[match.group(1)][1:] + '>'
+            content = nicksre.sub(nick_mapper, content)
         return asyncio.async(bot.send_message(ch, content))
 
     def handle_status_cmd(self, line):
