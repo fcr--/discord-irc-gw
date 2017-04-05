@@ -10,6 +10,73 @@ bot = discord.Client()
 server_name = 'DiscordIrcGw'
 
 irc_client = None
+modules = []
+
+class JukeboxModule():
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.last_url = None
+        self.last_message_time = time.time()
+        self.last_processes = set()
+        self.terminated = False
+
+    def on_ready(self):
+        for server in bot.servers:
+            for ch in server.channels:
+                if ch.type == discord.ChannelType.text and ch.name.lower() == self.cfg['notificationchannel']:
+                    chan = ch
+        yield from bot.send_message(chan, '<@%s>: subscribe' % config.nick_mappings_inv[self.cfg['nick']][1:])
+
+    @asyncio.coroutine
+    def on_message(self, msg):
+        # vars: after
+        if config.nick_mappings['u'+msg.author.id] == self.cfg['nick']:
+            @asyncio.coroutine
+            def coro(command):
+                proc = yield from asyncio.create_subprocess_shell(command)
+                if self.terminated:
+                    return proc.terminate()
+                self.last_processes.add(proc)
+                try:
+                    yield from proc.wait()
+                    for p in [ p for p in self.last_processes if p is not proc ]:
+                        try:
+                            p.terminate()
+                        except:
+                            pass
+                        self.last_processes.discard(p)
+                finally:
+                    self.last_processes.discard(proc)
+
+            m = re.match(r'^<@!?%s>.*\n([a-zA-Z0-9_-]{11})$' % bot.user.id, msg.content)
+            if m is None:
+                return False
+            url = m.group(1)
+            print('notification received for url:', url)
+            # FIXME: add support for pause
+            #if after.game is None or after.game.url is None or after.game.url == '':
+            #    self.terminated = True
+            #    for p in self.last_processes:
+            #        try:
+            #            p.terminate()
+            #        except:
+            #            pass
+            #        self.last_processes.discard(p)
+            if self.last_url != url or not self.is_playing():
+                command = """./youtube-play.sh {}""".format(shlex.quote(url))
+                self.terminated = False
+                self.last_url = url
+                self.last_message_time = time.time()
+                asyncio.async(coro(command))
+            return 'Currently playing' not in msg.content # False for status response
+
+    def is_playing(self):
+        return not self.terminated and any(p.returncode is None for p in self.last_processes)
+
+
+class YoutubeModule():
+    def __init__(self, cfg):
+        self.cfg = cfg
 
 @bot.async_event
 def on_member_join(member):
@@ -19,6 +86,10 @@ def on_member_join(member):
 def on_message(message, newmessage=None):
     if message.author.id == bot.user.id:
         return
+    if newmessage is None:
+        for m in modules:
+            if hasattr(m, 'on_message') and (yield from m.on_message(message)):
+                return
     n = ([ ircname for ircname, ch in irc_client.joins.items()
         if message.channel.id == ch.id ] + [irc_client.nickname])[0]
     def nickmapper(match):
@@ -31,9 +102,8 @@ def on_message(message, newmessage=None):
         for k, v in a.items():
             print(k, v)
     if newmessage is not None:
-        if newmessage.content != message.content:
-            parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
-                     ' → ' + newmessage.content).split('\n')
+        parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
+                 ' → ' + newmessage.content).split('\n')
         for url in message_urls(newmessage) - message_urls(message):
             parts.append('→ URL: ' + url)
     else:
@@ -46,52 +116,14 @@ def on_message(message, newmessage=None):
                 'PRIVMSG', [n, content])
 
 @bot.async_event
-def on_message_edit(before, after):
-    yield from on_message(before, after)
-
-jukebox_info = {
-    'last_url': None,
-    'last_message_time': time.time(),
-    'last_processes': set(),
-    'terminated': False
-}
+def on_ready():
+    for m in modules:
+        if hasattr(m, 'on_ready'):
+            yield from m.on_ready()
 
 @bot.async_event
-def on_member_update(before, after):
-    if 'jukebox' in config.mod and config.nick_mappings['u'+after.id] == config.mod['jukebox']['nick']:
-        @asyncio.coroutine
-        def coro(command):
-            proc = yield from asyncio.create_subprocess_shell(command)
-            if jukebox_info['terminated']:
-                return proc.terminate()
-            jukebox_info['last_processes'].add(proc)
-            try:
-                yield from proc.wait()
-                for p in [ p for p in jukebox_info['last_processes'] if p is not proc ]:
-                    try:
-                        p.terminate()
-                    except:
-                        pass
-                    jukebox_info['last_processes'].discard(p)
-            finally:
-                jukebox_info['last_processes'].discard(proc)
-
-        print('notification received for url:', after.game.url)
-        if after.game is None or after.game.url is None or after.game.url == '':
-            jukebox_info['terminated'] = True
-            for p in jukebox_info['last_processes']:
-                try:
-                    p.terminate()
-                except:
-                    pass
-                jukebox_info['last_processes'].discard(p)
-        elif jukebox_info['last_url'] != after.game.url or time.time() - jukebox_info['last_message_time'] > 1:
-            command = """./youtube-play.sh {}""".format(shlex.quote(after.game.url))
-            jukebox_info['terminated'] = False
-            jukebox_info['last_url'] = after.game.url
-            jukebox_info['last_message_time'] = time.time()
-            asyncio.async(coro(command))
-
+def on_message_edit(before, after):
+    yield from on_message(before, after)
 
 class IrcServerProtocol(asyncio.Protocol):
     def connection_made(self, transport):
@@ -214,7 +246,7 @@ class IrcServerProtocol(asyncio.Protocol):
     def handle_privmsg(self, line):
         if len(line)<3:
             return 'love'
-        if line[1][:1] == '#': # privmsg to a nick:
+        if line[1][:1] == '#': # privmsg to a channel:
             if line[1].lower() not in self.joins:
                 return self.write_smsg(401, [line[1], 'Destination channel not joined.'])
             ch = self.joins[line[1].lower()]
@@ -307,9 +339,12 @@ def __main__():
     config.nick_mappings_inv = {}
     for uid, nick in config.nick_mappings.items():
         config.nick_mappings_inv[nick] = uid
+
     loop = asyncio.get_event_loop()
     coro = loop.create_server(IrcServerProtocol, '127.0.0.1', config.port)
     loop.run_until_complete(coro)
+
+    modules.extend(globals()[n.title()+'Module'](c) for n, c in config.mod.items())
 
     if hasattr(config, 'email') and hasattr(config, 'password'):
         bot.run(config.email, config.password)
