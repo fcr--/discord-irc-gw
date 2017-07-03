@@ -4,7 +4,7 @@
 import config
 import discord
 import asyncio
-import re, shlex, time, multiprocessing
+import re, shlex, time, multiprocessing, itertools
 
 bot = discord.Client()
 server_name = 'DiscordIrcGw'
@@ -48,7 +48,7 @@ class JukeboxModule():
                 finally:
                     self.last_processes.discard(proc)
 
-            m = re.match(r'^<@!?%s>.*\n([a-zA-Z0-9_-]{11})$' % bot.user.id, msg.content)
+            m = re.match(r'(?:^|\n)<@!?%s>.*\nnow playing: *([^\n]+)(?:$|\n)' % bot.user.id, msg.content)
             if m is None:
                 return False
             url = m.group(1)
@@ -101,13 +101,13 @@ def on_message(message, newmessage=None):
     for a in message.attachments:
         for k, v in a.items():
             print(k, v)
+    parts = message.content.split('\n') + ['URL: ' + url for url in message_urls(message)]
     if newmessage is not None:
-        parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
-                 ' → ' + newmessage.content).split('\n')
+        if message.content != newmessage.content:
+            parts = ('(edited) ' + message.content[:10] + ('[..]' if len(message.content)>10 else '') + \
+                     ' → ' + newmessage.content).split('\n')
         for url in message_urls(newmessage) - message_urls(message):
             parts.append('→ URL: ' + url)
-    else:
-        parts = message.content.split('\n') + ['URL: ' + url for url in message_urls(message)]
     for content in parts:
         content = re.sub(r'<@!?([0-9]{10,})>', nickmapper, content)
         if not message.channel.is_private and n[:1] != '#':
@@ -196,21 +196,19 @@ class IrcServerProtocol(asyncio.Protocol):
                 return self.handlers[line[0].upper()](line)
 
     def handle_join(self, line):
-        for ircchannel in line[1].lower().split(','):
+        for ircchannel, password in itertools.zip_longest(line[1].lower().split(','), line[2].split(',') if len(line) > 2 else []):
             channels = []
-            count = 0
             for server in bot.servers:
-                for ch in server.channels:
-                    if ch.type == discord.ChannelType.text and (ircchannel == '#'+ch.name.lower()
-                            or ircchannel == ch.id):
+                for ch in (c for c in server.channels if c.type == discord.ChannelType.text):
+                    if (password == ch.id if password and password != 'x' else ircchannel == '#'+ch.name.lower()):
                         channels.append(ch)
             if len(channels) == 0:
                 self.write_smsg(403, [ircchannel, 'This channel does not exist in your server!'])
             elif len(channels) > 1:
                 self.write_smsg(403, [ircchannel, 'There are more than 1 channel with the same name, use id.'])
                 for ch in channels:
-                    self.write_smsg('NOTICE', ['*', 'server=%s (%s) -> %s' % (
-                        ch.server.name, (ch.topic or '')[:50], ch.id)])
+                    self.write_smsg('NOTICE', ['*', 'server=%s (%s) -> /join %s %s' % (
+                        ch.server.name, (ch.topic or '')[:50], ircchannel, ch.id)])
             else:
                 self.write_msg(self.nickname, 'JOIN', [ircchannel])
                 if channels[0].topic is None:
@@ -243,6 +241,8 @@ class IrcServerProtocol(asyncio.Protocol):
     def handle_ping(self, line):
         self.write_smsg('PONG', [server_name] + line[1:])
 
+    urlsplitter_re = re.compile(r'(.*?)((?:https?://[^ ]*)|$)')
+    quote_re = re.compile(r'([_*`\\~])')
     def handle_privmsg(self, line):
         if len(line)<3:
             return 'love'
@@ -264,7 +264,7 @@ class IrcServerProtocol(asyncio.Protocol):
                     break
             else:
                 return self.write_smsg(401, [line[1], 'No such nick exists.'])
-        content = line[2]
+        content = self.urlsplitter_re.sub(lambda m: self.quote_re.sub(r'\\\1', m.group(1))+m.group(2), line[2])
         if line[1][:1] == '#': # nick references only on non-private conversations
             nicksre = re.compile(r'\b(' + '|'.join(config.nick_mappings.values()) + r')\b')
             def nick_mapper(match):
