@@ -80,7 +80,7 @@ class YoutubeModule():
 
 @bot.async_event
 def on_member_join(member):
-    print('Member {0.mention} joined.' % str(member))
+    print('Member(id={0.id}, display_name={0.display_name}) joined.'.format(member))
 
 @bot.async_event
 def on_message(message, newmessage=None):
