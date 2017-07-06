@@ -154,7 +154,9 @@ class IrcServerProtocol(asyncio.Protocol):
             raise Exception('space in non-last command')
         if len(args):
             args[-1] = ':' + args[-1]
-        msg = ' '.join([':'+server_name, str(cmd), self.nickname] + args) + '\r\n'
+        if isinstance(cmd, int):
+            cmd = '%03d' % cmd
+        msg = ' '.join([':'+server_name, cmd, self.nickname] + args) + '\r\n'
         self.transport.write(msg.encode())
 
     def write_msg(self, userfrom, cmd, args):
@@ -164,7 +166,9 @@ class IrcServerProtocol(asyncio.Protocol):
             args[-1] = ':' + args[-1]
         if userfrom[:1] != ':':
             userfrom = ':{0}!{0}@localhost'.format(userfrom)
-        msg = ' '.join([userfrom, str(cmd)] + args) + '\r\n'
+        if isinstance(cmd, int):
+            cmd = '%03d' % cmd
+        msg = ' '.join([userfrom, cmd] + args) + '\r\n'
         self.transport.write(msg.encode())
 
     def data_received(self, data):
