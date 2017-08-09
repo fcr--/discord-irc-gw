@@ -136,6 +136,7 @@ class IrcServerProtocol(asyncio.Protocol):
         self.line_buffer = []
         self.handlers = {
                 'JOIN': self.handle_join,
+                'LIST': self.handle_list,
                 'NAMES': self.handle_names,
                 'PING': self.handle_ping,
                 'PRIVMSG': self.handle_privmsg,
@@ -221,6 +222,13 @@ class IrcServerProtocol(asyncio.Protocol):
                     self.write_smsg(332, [ircchannel, channels[0].topic.replace('\n', ' ')])
                 self.joins[ircchannel] = channels[0]
                 self.handle_names(['NAMES', ircchannel])
+
+    def handle_list(self, line):
+        self.write_smsg(321, ['Channel', 'Id - Server (Topic)'])
+        for server in bot.servers:
+            for ch in (c for c in server.channels if c.type == discord.ChannelType.text):
+                self.write_smsg(322, ['#'+ch.name.lower(), '1', '%s - %s (%s)' % (ch.id , ch.server.name, (ch.topic or '')[:50])])
+        self.write_smsg(323, ['End of /LIST'])
 
     def handle_names(self, line):
         if len(line) < 2:
