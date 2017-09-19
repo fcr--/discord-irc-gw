@@ -46,11 +46,12 @@ class JukeboxModule():
                         p.terminate()
                     except:
                         pass
-                    self.last_processes.discard(p)
+                self.last_processes.clear()
                 self.last_processes.add(proc)
                 try:
                     yield from proc.wait()
-                    proc.terminate()
+                except:
+                    pass
                 finally:
                     self.last_processes.discard(proc)
 
