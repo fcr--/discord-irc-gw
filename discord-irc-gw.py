@@ -21,11 +21,18 @@ class JukeboxModule():
         self.terminated = False
 
     def on_ready(self):
-        for server in bot.servers:
-            for ch in server.channels:
-                if ch.type == discord.ChannelType.text and ch.name.lower() == self.cfg['notificationchannel']:
-                    chan = ch
-        yield from bot.send_message(chan, '<@%s>: subscribe' % config.nick_mappings_inv[self.cfg['nick']][1:])
+        nickid = config.nick_mappings_inv[self.cfg['nick']][1:]
+        if 'guild' in self.cfg:
+            for member in bot.get_all_members():
+                if int(member.id) == int(nickid):
+                    yield from bot.send_message(member, '<@%s> guild:%s subscribe' % (nickid, self.cfg['guild']))
+                    break
+        else:
+            for server in bot.servers:
+                for ch in server.channels:
+                    if ch.type == discord.ChannelType.text and ch.name.lower() == self.cfg['notificationchannel']:
+                        chan = ch
+            yield from bot.send_message(member, '<@%s>: subscribe' % nickid)
 
     @asyncio.coroutine
     def on_message(self, msg):
@@ -34,17 +41,16 @@ class JukeboxModule():
             @asyncio.coroutine
             def coro(command):
                 proc = yield from asyncio.create_subprocess_shell(command)
-                if self.terminated:
-                    return proc.terminate()
+                for p in self.last_processes:
+                    try:
+                        p.terminate()
+                    except:
+                        pass
+                    self.last_processes.discard(p)
                 self.last_processes.add(proc)
                 try:
                     yield from proc.wait()
-                    for p in [ p for p in self.last_processes if p is not proc ]:
-                        try:
-                            p.terminate()
-                        except:
-                            pass
-                        self.last_processes.discard(p)
+                    proc.terminate()
                 finally:
                     self.last_processes.discard(proc)
 
@@ -91,7 +97,7 @@ def on_message(message, newmessage=None):
             if hasattr(m, 'on_message') and (yield from m.on_message(message)):
                 return
     n = ([ ircname for ircname, ch in irc_client.joins.items()
-        if message.channel.id == ch.id ] + [irc_client.nickname])[0]
+        if message.channel.id == ch.id ] + ['*unjoined'])[0]
     def nickmapper(match):
         if 'u'+match.group(1) in config.nick_mappings:
             return '<' + config.nick_mappings['u'+match.group(1)] + '>'

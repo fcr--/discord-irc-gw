@@ -13,4 +13,22 @@ port = 6667
 #email = 'your@email.com'
 #password = 'w34Ks3cr3t'
 
+mod = {
+    # YOUTUBE MODULE
+    # Use this module to play the sound of a youtube viedeo in a voice channel.
+    # To use it, just send a message to *status, saying: "youtube " + the video id or url. You'll now send the audio without hearing it.
+    # The channel parameters should have a string with the ID of the destination voice channel.
+    # 'youtube': {'channel': '216351739465628906'},
+
+    # JUKEBOX MODULE
+    # Use this module in conjunction with this bot: https://github.com/rcano/discord-jukebot/tree/discord-v6
+    # 'nick' is the mapped name for the bot's user. It must be present in nick_mappings.
+    # Then you should configure 'guild' or 'notificationchannel' to notify jukebot that you'd like to receive notifications.
+    # Using 'guild' is recommended since it does not make any noise on the jukebox channel.
+    # 'guild': a string with the guild identifier.
+    #'jukebox': {'nick': 'jukebox',
+    #    #'notificationchannel': 'jukebox',
+    #    'guild': '207861867381643783'}
+}
+
 # vi: et sw=4
