@@ -285,7 +285,9 @@ class IrcServerProtocol(asyncio.Protocol):
                 return self.write_smsg(401, [line[1], 'No such nick exists.'])
         content = self.urlsplitter_re.sub(lambda m: self.quote_re.sub(r'\\\1', m.group(1))+m.group(2), line[2])
         if line[1][:1] == '#': # nick references only on non-private conversations
-            nicksre = re.compile(r'\b(' + '|'.join(config.nick_mappings.values()) + r')\b')
+            member_ids = set(m.id for m in ch.server.members)
+            nicks = list(nick for u, nick in config.nick_mappings.items() if u[1:] in member_ids)
+            nicksre = re.compile(r'\b(' + '|'.join(sorted(nicks, key=lambda x:-len(x))) + r')\b')
             def nick_mapper(match):
                 return '<@' + config.nick_mappings_inv[match.group(1)][1:] + '>'
             content = nicksre.sub(nick_mapper, content)
